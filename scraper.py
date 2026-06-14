@@ -6,31 +6,20 @@ from bs4 import BeautifulSoup
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/analyze', methods=['GET'])
-def analyze():
-    url = request.args.get('url').strip('"')
-    if os.path.exists(url):
-        try:
-            with open(url, encoding='utf-8') as f:
-                html = f.read()
-        except UnicodeDecodeError:
-            with open(url, encoding='latin1') as f:
-                html = f.read()
-    else:
-        try:
-            resp = requests.get(url)
-            html = resp.text
-        except:
-            return jsonify({"error": "File not found or invalid URL."})
+@app.route('/analyze-file', methods=['POST'])
+def analyze_file():
+    f = request.files['file']
+    html = f.read().decode("utf-8", errors='replace')
 
     soup = BeautifulSoup(html, 'html.parser')
 
+    # --- Candidate info ---
     info_table = soup.find('table')
     if not info_table:
-        return jsonify({"error": "No <table> found!"})
+        return jsonify({"error": "No <table> found! (Invalid or corrupted CUET HTML file)"})
     rows = info_table.find_all('tr')
     if len(rows) < 3 or len(rows[0].find_all('td')) < 2:
-        return jsonify({"error": "Table structure not expected for info."})
+        return jsonify({"error": "Table structure incorrect, not a CUET response sheet."})
 
     application_no = rows[0].find_all('td')[1].text.strip()
     name = rows[1].find_all('td')[1].text.strip()
@@ -78,5 +67,7 @@ def analyze():
         "subjects": subjects
     })
 
+
+# Only if you want to test locally (safe to leave ignored for production /render)
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
